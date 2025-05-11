@@ -1,53 +1,82 @@
-# Step 3: Save your Streamlit app (you can modify this block with your app code)
-%%writefile app.py
+# app.py
+
 import streamlit as st
+import pandas as pd
 import joblib
 import numpy as np
+import matplotlib.pyplot as plt
 
-st.title("Heart Transplantation Prediction System")
+# Page configuration
+st.set_page_config(page_title="Heart Transplant Decision Support", layout="wide")
 
-st.sidebar.header("Select Module")
-module = st.sidebar.selectbox("Choose a module", ["Module 1: Donor-Recipient Matching",
-                                                   "Module 2: Post-Transplant Monitoring",
-                                                   "Module 3: Long-Term Survival Prediction",
-                                                   "Module 4: Risk Stratification"])
+st.title("🫀 AI-Powered Heart Transplant Decision Support System")
+st.sidebar.title("Modules")
 
-base_path = "/content/drive/MyDrive/dataset/"
+# Load models
+@st.cache_resource
+def load_models():
+    base_path = "models/"  # Update if stored in a different GitHub folder
+    models = {
+        "Module 1": joblib.load(base_path + "xgb_module1_donor_recipient_matching.pkl"),
+        "Module 2": joblib.load(base_path + "rsf_module2_post_transplant_monitoring.pkl"),
+        "Module 3": joblib.load(base_path + "rsf_module3_long_term_survival.pkl"),
+        "Module 4": joblib.load(base_path + "xgb_module4_risk_stratification.pkl"),
+    }
+    return models
 
-if module == "Module 1: Donor-Recipient Matching":
-    st.subheader("Predict Match Score")
-    model = joblib.load(base_path + "xgb_module1_donor_recipient_matching.pkl")
-    input_data = st.text_area("Enter feature values (comma-separated)", "1,4,11,3,1,2013,...")
-    if st.button("Predict"):
-        features = np.array([list(map(float, input_data.split(",")))]).reshape(1, -1)
-        score = model.predict_proba(features)[0][1]
-        st.success(f"Predicted Match Score: {score:.3f}")
+models = load_models()
 
-elif module == "Module 2: Post-Transplant Monitoring":
-    st.subheader("Predict 1-Year Survival Probability")
-    rsf = joblib.load(base_path + "rsf_module2_post_transplant_monitoring.pkl")
-    input_data = st.text_area("Enter patient features (comma-separated)", "value1,value2,...")
-    if st.button("Predict"):
-        features = np.array([list(map(float, input_data.split(",")))]).reshape(1, -1)
-        surv_probs = rsf.predict_survival_function(features, return_array=True)[0]
-        st.success(f"Day 365 Survival Probability: {np.interp(365, rsf.unique_times_, surv_probs):.3f}")
+# Module Selection
+module = st.sidebar.radio("Select a Module", ["Module 1", "Module 2", "Module 3", "Module 4"])
 
-elif module == "Module 3: Long-Term Survival Prediction":
-    st.subheader("Survival Prediction at 3, 5, 10 Years")
-    rsf = joblib.load(base_path + "rsf_module3_long_term_survival.pkl")
-    input_data = st.text_area("Enter patient features (comma-separated)", "value1,value2,...")
-    if st.button("Predict"):
-        features = np.array([list(map(float, input_data.split(",")))]).reshape(1, -1)
-        surv_probs = rsf.predict_survival_function(features, return_array=True)[0]
-        for day in [1095, 1825, 3650]:
-            prob = np.interp(day, rsf.unique_times_, surv_probs)
-            st.write(f"Survival Probability at {day//365} years: {prob:.3f}")
+# Common input method
+def get_user_input(features):
+    input_data = {}
+    for col in features:
+        input_data[col] = st.number_input(f"{col}", value=0.0)
+    return pd.DataFrame([input_data])
 
-elif module == "Module 4: Risk Stratification":
-    st.subheader("Predict Risk Level")
-    model = joblib.load(base_path + "xgb_module4_risk_stratification.pkl")
-    input_data = st.text_area("Enter patient features (comma-separated)", "value1,value2,...")
-    if st.button("Predict"):
-        features = np.array([list(map(float, input_data.split(",")))]).reshape(1, -1)
-        prediction = model.predict(features)[0]
-        st.success(f"Predicted Risk Level: {int(prediction)}")
+# Module 1
+if module == "Module 1":
+    st.header("Donor-Recipient Matching")
+    df = pd.read_csv("datasets/reduced_module1.csv")
+    input_df = get_user_input(df.drop(columns=['CRSMATCH_DONE']).columns)
+    match_score = models["Module 1"].predict_proba(input_df)[:, 1][0]
+    st.success(f"Match Score: {match_score:.2f}")
+
+# Module 2
+elif module == "Module 2":
+    st.header("Post-Transplantation Monitoring")
+    df = pd.read_csv("datasets/reduced_module2.csv")
+    input_df = get_user_input(df.drop(columns=['365DaySurvival', 'TX_YEAR', 'event']).columns)
+    rsf = models["Module 2"]
+    surv_fn = rsf.predict_survival_function(input_df.to_numpy(), return_array=True)[0]
+
+    st.subheader("Survival Curve (Next 3 Years)")
+    times = rsf.unique_times_
+    plt.step(times, surv_fn, where="post")
+    plt.xlabel("Days since Transplant")
+    plt.ylabel("Survival Probability")
+    plt.grid(True)
+    st.pyplot(plt)
+
+# Module 3
+elif module == "Module 3":
+    st.header("Long-Term Survival Prediction")
+    df = pd.read_csv("datasets/reduced_module3.csv")
+    input_df = get_user_input(df.drop(columns=['365DaySurvival', 'TX_YEAR', 'event']).columns)
+    rsf = models["Module 3"]
+    surv_fn = rsf.predict_survival_function(input_df.to_numpy(), return_array=True)[0]
+    times = [1095, 1825, 3650]
+    probs = [np.interp(t, rsf.unique_times_, surv_fn) for t in times]
+    st.success(f"3-Year Survival: {probs[0]:.2f}, 5-Year: {probs[1]:.2f}, 10-Year: {probs[2]:.2f}")
+
+# Module 4
+elif module == "Module 4":
+    st.header("Risk Stratification")
+    df = pd.read_csv("datasets/reduced_module4.csv")
+    input_df = get_user_input(df.drop(columns=['risk_level']).columns)
+    risk = models["Module 4"].predict(input_df)[0]
+    risk_map = {0: "Low", 1: "Moderate", 2: "High"}
+    st.success(f"Predicted Risk Level: {risk_map[risk]}")
+
