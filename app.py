@@ -12,17 +12,17 @@ st.set_page_config(page_title="Heart Transplant Decision Support", layout="wide"
 st.title("🫀 AI-Powered Heart Transplant Decision Support System")
 st.sidebar.title("Modules")
 
-# Load models
 @st.cache_resource
 def load_models():
-    base_path = "models/"  # Update if stored in a different GitHub folder
+    base_path = ""  # ← removed 'models/' because files are in root
     models = {
         "Module 1": joblib.load(base_path + "xgb_module1_donor_recipient_matching.pkl"),
         "Module 2": joblib.load(base_path + "rsf_module2_post_transplant_monitoring.pkl"),
         "Module 3": joblib.load(base_path + "rsf_module3_long_term_survival.pkl"),
-        "Module 4": joblib.load(base_path + "xgb_module4_risk_stratification.pkl"),
+        "Module 4": joblib.load(base_path + "xgb_module4_risk_stratification.pkl")
     }
     return models
+
 
 models = load_models()
 
