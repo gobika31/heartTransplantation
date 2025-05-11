@@ -2,15 +2,15 @@ import streamlit as st
 import pandas as pd
 import joblib
 
-# Load all models (with caching)
 @st.cache_resource
 def load_models():
     return {
         "Module 1": joblib.load("xgb_module1_donor_recipient_matching.pkl"),
-        "Module 2": joblib.load("rsf_module2_post_transplant_monitoring.pkl"),
+        "Module 2": joblib.load("rsf_module2_post_transplant_monitoring (3).pkl"),
         "Module 3": joblib.load("rsf_module3_long_term_survival.pkl"),
         "Module 4": joblib.load("xgb_module4_risk_stratification.pkl"),
     }
+
 
 models = load_models()
 
